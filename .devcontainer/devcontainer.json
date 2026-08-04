@@ -1,0 +1,55 @@
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "features": {
+    // Claude Code 本体が Node 製。claude-code feature より先に解決させる
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    // ホストの docker をコンテナ内から使う。moby:false は Docker Desktop 用
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+
+    // プロジェクトに応じて追記する例:
+    // "ghcr.io/devcontainers/features/go:1": { "version": "1.26" },
+    // "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
+    // "ghcr.io/va-h/devcontainers-features/uv:1": { "version": "latest" }
+  },
+
+  // 認証情報・セッション履歴・シェル履歴をコンテナ再作成をまたいで保つ
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=${localWorkspaceFolderBasename}-codex-${devcontainerId},target=/home/vscode/.codex,type=volume",
+    "source=${localWorkspaceFolderBasename}-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume",
+    "source=${localWorkspaceFolderBasename}-history-${devcontainerId},target=/commandhistory,type=volume"
+  ],
+
+  // ~/.claude に volume を張るだけでは毎回ログインし直しになる。OAuth アカウント情報は
+  // ~/.claude.json という volume の外のファイルに入るため。CLAUDE_CONFIG_DIR を
+  // 同じパスに向けると .claude.json も volume の中に書かれる
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+
+  // Codex CLI は devcontainer feature が公式に無いので npm で入れる。
+  // 2つは独立なのでオブジェクト形式にして並列で走らせる
+  "postCreateCommand": {
+    "codex": "npm install -g @openai/codex",
+    "plugins": "bash .devcontainer/setup-plugins.sh"
+  },
+
+  "customizations": {
+    "vscode": {
+      // anthropic.claude-code は claude-code feature が自動で入れる
+      "extensions": [
+        "eamodio.gitlens",
+        "editorconfig.editorconfig",
+        "usernamehw.errorlens"
+      ]
+    }
+  }
+}

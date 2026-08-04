@@ -1,0 +1,11 @@
+.DS_Store
+
+# 秘密情報。コンテナに渡すときも .env 経由にしてコミットしない
+.env
+.env.*
+
+# 個人用の permission allowlist。共有しない
+.claude/settings.local.json
+
+# log-bash.sh フックの出力
+.claude/logs/

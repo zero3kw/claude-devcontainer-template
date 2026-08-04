@@ -1,0 +1,11 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Markdown は行末2スペースが改行の意味を持つ
+[*.md]
+trim_trailing_whitespace = false
