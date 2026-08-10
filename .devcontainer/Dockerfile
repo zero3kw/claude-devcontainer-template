@@ -28,7 +28,7 @@ ENV DEVCONTAINER=true
 #
 # あわせて bash 履歴を volume 側に書く。history -a で実行のたびに追記する。
 # PROMPT_COMMAND はベースイメージも使うので上書きせず後ろに足す
-RUN mkdir -p /home/vscode/.claude /home/vscode/.codex /home/vscode/.config/gh /commandhistory \
+RUN mkdir -p /home/vscode/.claude/tmp /home/vscode/.codex /home/vscode/.config/gh /commandhistory \
     && chown -R vscode:vscode /home/vscode/.claude /home/vscode/.codex /home/vscode/.config /commandhistory \
     && cat >> /home/vscode/.bashrc <<'EOF'
 PROMPT_COMMAND+=('history -a')

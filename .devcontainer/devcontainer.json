@@ -5,7 +5,8 @@
   },
 
   "features": {
-    // Claude Code 本体が Node 製。claude-code feature より先に解決させる
+    // 記述順はインストール順を決めない。node が先に入るのは claude-code feature が
+    // installsAfter に node を挙げているため
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
@@ -23,6 +24,7 @@
   // 認証情報・セッション履歴・シェル履歴をコンテナ再作成をまたいで保つ
   "mounts": [
     "source=${localWorkspaceFolderBasename}-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=${localWorkspaceFolderBasename}-tmp-${devcontainerId},target=/home/vscode/.claude/tmp,type=volume",
     "source=${localWorkspaceFolderBasename}-codex-${devcontainerId},target=/home/vscode/.codex,type=volume",
     "source=${localWorkspaceFolderBasename}-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume",
     "source=${localWorkspaceFolderBasename}-history-${devcontainerId},target=/commandhistory,type=volume"
@@ -31,14 +33,26 @@
   // ~/.claude に volume を張るだけでは毎回ログインし直しになる。OAuth アカウント情報は
   // ~/.claude.json という volume の外のファイルに入るため。CLAUDE_CONFIG_DIR を
   // 同じパスに向けると .claude.json も volume の中に書かれる
+  //
+  // CLAUDE_CODE_TMPDIR は scratchpad などの一時ファイルの置き場。既定は /tmp。
+  // 実際のパスは <CLAUDE_CODE_TMPDIR>/claude-<uid>/<project>/<session>/scratchpad
+  // volume の絶対パスを指す。バインドマウントに直接書くと小さいファイルの作成が
+  // 20倍ほど遅く、agent teams のソケットもこの配下に置かれる
   "containerEnv": {
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "CLAUDE_CODE_TMPDIR": "/home/vscode/.claude/tmp"
   },
 
-  // Codex CLI は devcontainer feature が公式に無いので npm で入れる。
-  // 2つは独立なのでオブジェクト形式にして並列で走らせる
+  // tmpdir はワークスペースから中身を見えるようにするための symlink。
+  // postCreateCommand より前に走らせる
+  "onCreateCommand": {
+    "tmpdir": "mkdir -p /home/vscode/.claude/tmp && rm -rf .claude/tmp && ln -s /home/vscode/.claude/tmp .claude/tmp"
+  },
+
+  // オブジェクト形式にすると並列で走る
   "postCreateCommand": {
     "codex": "npm install -g @openai/codex",
+    "gitcred": "gh auth setup-git || true",
     "plugins": "bash .devcontainer/setup-plugins.sh"
   },
 
@@ -49,7 +63,25 @@
         "eamodio.gitlens",
         "editorconfig.editorconfig",
         "usernamehw.errorlens"
-      ]
+      ],
+
+      // .claude/settings.json の permissions.defaultMode は VS Code 拡張には効かない。
+      // 拡張側でモードを開放したうえで初期モードを指定する必要がある
+      "settings": {
+        "claudeCode.allowDangerouslySkipPermissions": true,
+        "claudeCode.initialPermissionMode": "bypassPermissions",
+
+        // worktree は worktrees/<name>/ と .claude/worktrees/<name>/ に作られる。
+        // 後者が3階層下なので、既定の 1 ではソース管理パネルに出ない
+        "git.repositoryScanMaxDepth": 3,
+
+        // 書き出し専用のディレクトリ。gitignore は監視には効かない。
+        // worktree は Claude が編集するので除外しない
+        "files.watcherExclude": {
+          "**/.claude/logs/**": true,
+          "**/.claude/tmp/**": true
+        }
+      }
     }
   }
 }

@@ -1,11 +1,35 @@
 .DS_Store
 
-# 秘密情報。コンテナに渡すときも .env 経由にしてコミットしない
+# コンテナに渡す値も直書きせずここに書く
 .env
 .env.*
 
-# 個人用の permission allowlist。共有しない
+# 個人用の permission allowlist
 .claude/settings.local.json
 
 # log-bash.sh フックの出力
 .claude/logs/
+
+# CLAUDE_CODE_TMPDIR の置き場。volume への symlink なので末尾に / を付けない
+.claude/tmp
+
+# plansDirectory の出力
+.claude/plans/
+
+# Claude Code の --worktree / サブエージェント用 worktree の作成先
+.claude/worktrees/
+
+# submodule 用に手で作る worktree の置き場
+/_worktrees/*
+!/_worktrees/.gitkeep
+
+# 調査・分析の作業場所
+/_data/**
+!/_data/*/
+!/_data/*/.gitkeep
+/_references/*
+!/_references/.gitkeep
+/_reports/*
+!/_reports/.gitkeep
+/_drafts/*
+!/_drafts/.gitkeep

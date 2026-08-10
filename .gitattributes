@@ -1,0 +1,2 @@
+# Windows ホストから clone してもシェルスクリプトが CRLF にならないようにする
+* text=auto eol=lf

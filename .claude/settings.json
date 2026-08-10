@@ -1,34 +1,58 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "plansDirectory": "./.claude/plans",
+  "language": "japanese",
+  "fileCheckpointingEnabled": true,
+  "teammateMode": "in-process",
+  "autoCompactEnabled": true,
+  "respectGitignore": true,
+  "useAutoModeDuringPlan": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git show:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh issue view:*)",
-      "Bash(gh issue list:*)"
+      "Read",
+      "Write",
+      "Edit",
+      "WebSearch",
+      "WebFetch",
+      "Workflow",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Monitor"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git * push *)",
+      "Bash(git send-pack *)",
+      "Bash(git * send-pack *)",
+      "Bash(gh repo sync *)",
+      "Bash(gh * create *)",
+      "Bash(gh * edit *)",
+      "Bash(gh * comment *)",
+      "Bash(gh * close *)",
+      "Bash(gh * delete *)",
+      "Bash(gh * merge *)",
+      "Bash(gh * review *)",
+      "Bash(gh api *)",
+      "Bash(docker exec *)",
+      "Bash(rm -rf *)"
     ]
   },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true
+    "claude-md-management@claude-plugins-official": true,
+    "genshijin@genshijin": true
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-polling-wait.sh"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Bash",

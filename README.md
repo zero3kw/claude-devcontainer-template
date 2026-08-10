@@ -1,171 +1,179 @@
 # claude-devcontainer-template
 
-Dev Container の中で Claude Code を動かすためのテンプレートリポジトリ。
-
-- ベースイメージ: `mcr.microsoft.com/devcontainers/base:debian`（ja_JP.UTF-8 / Asia/Tokyo）
-- Claude が Bash で使う道具は同梱済み: `python3` `ripgrep`（追加）/ `jq` `curl` `git` `less` `tree` `ps` `make` `gcc`（ベースイメージ同梱）
-- 人間向けに `fzf`（Ctrl+R の履歴検索）
-- Claude Code は公式 feature（`ghcr.io/anthropics/devcontainer-features/claude-code`）で導入
-- Codex CLI も同梱（`npm install -g @openai/codex`）。認証は `~/.codex` に永続化
-- 認証情報（`~/.claude` と `gh`）とシェル履歴は名前付き volume で永続化。コンテナを作り直してもログインし直さなくてよい
-- 認証方式は Claude サブスクリプション（OAuth）
-
-[公式のリファレンス実装](https://github.com/anthropics/claude-code/tree/main/.devcontainer)に沿った構成。egress を絞る `init-firewall.sh` だけは入れていない（許可ドメインの維持が要り、外部 API を叩くプロジェクトで詰まるため。要るなら[足せる](#ネットワーク遮断を入れたくなったら)）。
+Dev Container 内で Claude Code を動かすテンプレートリポジトリ。
 
 ## 使い方
 
 ### 1. テンプレートから新しいリポジトリを作る
 
-GitHub の "Use this template" から作るか、ローカルなら:
+GitHub "Use this template" から作成、ローカルなら:
 
 ```sh
-git clone <this-repo> my-project && cd my-project && rm -rf .git && git init
+PROJECT=$(date +%Y%m%d)
+git clone https://github.com/zero3kw/claude-devcontainer-template.git "$PROJECT"
+cd "$PROJECT" && rm -rf .git && git init
 ```
 
-### 2. CLAUDE.md を書く
+### 2. コンテナを開く
 
-[CLAUDE.md](CLAUDE.md) の空欄を埋める。ここ以外に手で書き換えるところは無い。各節の HTML コメントは書き方のガイドなので、埋めたら消す。末尾の「確認の取り方」「待機と監視」だけはプロジェクトを問わず効く運用ルールなので、そのまま残してよい。
+VS Code で `Dev Containers: Reopen in Container`。
 
-自力で埋めなくても、同梱の `claude-md-management` に採点させて直させることもできる。作業したあとに `/claude-md-management:revise-claude-md` を叩けば、その回で分かったこと（使ったコマンド、踏んだ地雷）を追記してくれる。
-
-- コンテナの表示名は `${localWorkspaceFolderBasename}` でディレクトリ名になる
-- volume 名は `<ディレクトリ名>-claude-<devcontainerId>` の形。先頭がディレクトリ名なので `docker volume ls` で探せて、末尾の ID で同名ディレクトリの別リポジトリとも混ざらない
-
-### 3. コンテナを開く
-
-VS Code で `Dev Containers: Reopen in Container`。初回は Docker イメージのビルドと feature のインストールが走る。
-
-### 4. コンテナ内で初回ログイン
+### 3. コンテナ内で初回ログイン
 
 ```sh
 claude          # ブラウザが開くので Claude アカウントで認証
-codex           # 使うなら。ChatGPT アカウントか OPENAI_API_KEY で認証
+codex           # ChatGPT アカウントか OPENAI_API_KEY で認証。不要なら devcontainer.json の codex を含む行を削除
 gh auth login   # git push / gh pr を使うなら
 ```
 
-いずれも volume に保存されるので、次回以降は不要。
+ホストの `~/.gitconfig` と ssh-agent の鍵は Dev Containers 拡張が自動で渡す。コミット作者名はコンテナ内で直しても再作成で消えるので、ホスト側で設定する。
 
-ブラウザでの認証は済んだのにターミナルが待ち続ける場合は、エディタのポート転送が localhost へのコールバックを返せていない。ブラウザに表示されたコードを `Paste code here if prompted` に貼れば進む。
+```sh
+git config --global user.name "..."    # ホストで実行する
+git config --global user.email "..."
+```
+
+### 4. CLAUDE.md を書く
+
+[CLAUDE.md](CLAUDE.md) の空欄を埋める。手で書かなくても、作業後に `/claude-md-management:revise-claude-md` を実行すれば、その回で使ったコマンドや踏んだ落とし穴が追記される。
+
+`<!-- -->` がある節は、それが書き方の指示なので埋めたら消す。中身のほうは、Conventions / Gotchas / Agents / Asking the user / Waiting and monitoring がプロジェクト非依存の運用ルールなので残してよい。
+
+## ディレクトリ構成
+
+プロジェクトのコードは submodule として `submodules/` に置き、編集はその worktree を `_worktrees/` に作って行う。
+
+```
+submodules/<submodule>/           プロジェクトのコード。git submodule add で追加
+_worktrees/<submodule>-<branch>/  編集用の worktree
+_data/raw/                        取得したままのデータ。編集しない
+_data/processed/                  加工後のデータ
+_references/                      調査で読む外部資料
+_reports/                         分析の成果物
+_drafts/                          下書きの md
+.claude/worktrees/                Claude Code が自動で作る worktree。gitignore 済み
+```
+
+先頭が `_` のディレクトリは gitignore 済みで、git に入るのは `.gitkeep` だけ。ソートでまとまるので、追跡される `submodules/` と一目で区別が付く。
+
+`_` の5つを親リポジトリの直下に置くのは、worktree を破棄してもブランチを切り替えても残る場所がここだけだから。
+
+親リポジトリ自身（`.claude/`、`.devcontainer/`、CLAUDE.md、README）は worktree を作らず直接編集してよい。clone 直後は `git submodule update --init --recursive` を先に実行する。作成手順と落とし穴は [CLAUDE.md](CLAUDE.md) の Conventions にある。
+
+## 設定済みのもの
+
+### プラグイン
+
+[.claude/settings.json](.claude/settings.json) の `enabledPlugins` で5つ有効化済み。
+
+- [`context7`](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins/context7) — ライブラリ最新ドキュメント参照。学習データの古さの影響回避
+- [`feature-dev`](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/feature-dev) — 機能開発ワークフローのスキル + エージェント
+- [`security-guidance`](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/security-guidance) — Claude の変更を都度レビュー、脆弱性をその場で修正させる
+- [`claude-md-management`](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-md-management) — CLAUDE.md 採点 + 修正
+- [`genshijin`](https://github.com/InterfaceX-co-jp/genshijin) — 応答を日本語超圧縮モード化しトークン削減
+
+プラグインを足すときは `enabledPlugins` に1行追記。公式マーケットプレイス以外なら [.devcontainer/setup-plugins.sh](.devcontainer/setup-plugins.sh) の `MARKETPLACES` にもリポジトリを追記する。`genshijin` がその例。
+
+### genshijin
+
+genshijin が有効なので、応答は敬語なしの短文で返る。
+
+- その場で強度変更 → `/genshijin 丁寧` / `/genshijin 通常` / `/genshijin 極限`
+- 既定強度変更 → [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) の `containerEnv` に `"GENSHIJIN_DEFAULT_MODE": "polite"`（`polite` / `normal` / `extreme`）
+- 黙らせる → 同じく `"GENSHIJIN_DEFAULT_MODE": "off"`
+- 外す → `enabledPlugins` の行 + setup-plugins.sh の `MARKETPLACES` の genshijin を削除
+
+### フック
+
+[.claude/settings.json](.claude/settings.json) に1つ登録済み。不要なら `hooks` から削除。
+
+- [log-bash.sh](.claude/hooks/log-bash.sh) — Bash 実行毎、コマンド + 出力を `.claude/logs/bash/` に1実行1ファイルで保存。`NAME=値` と `Authorization` ヘッダに加え、`sk-ant-` や `gho_` のようなトークンの形と URL 内のパスワードもマスクする。出力は gitignore 済み
+
+### エージェント
+
+[.claude/agents/](.claude/agents/) にサブエージェントを2つ登録済み。どちらも編集ツールを持たない。不要ならファイルを削除。
+
+- [investigator.md](.claude/agents/investigator.md) — コードの位置と依存関係を `path:line` で返す。`Read` / `Grep` / `Glob` のみで読み取り専用。探索は機械的なので haiku
+- [reviewer.md](.claude/agents/reviewer.md) — 差分を1指摘1行、重大度付きで返す。`git diff` を使うので `Bash` を持ち、書き込みは指示で止めている。判断が要るので sonnet
+
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` も有効。複数の Claude を teammate として並列に動かせる。使い分けと制約は [CLAUDE.md](CLAUDE.md) の Agents にある。
+
+### 権限の設定
+
+[.claude/settings.json](.claude/settings.json) の `permissions.defaultMode` を `bypassPermissions` 設定済み。
+
+VS Code 拡張は別のゲートを持つ。`permissions.defaultMode` だけでは効かず、Bash 実行のたびに確認が出る。[.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) の `customizations.vscode.settings` で拡張側を開けてある。ターミナルの `claude` だけ使うなら、拡張のゲートを通らないのでこの設定は要らない。
+
+- `claudeCode.allowDangerouslySkipPermissions` — Bypass permissions をモード選択肢に出す
+- `claudeCode.initialPermissionMode` — 新規会話の開始モード
+
+確認を挟まないので、コンテナから出られる経路は塞ぐこと。信頼できないリポジトリを開くなら `bypassPermissions` か [docker-outside-of-docker](#コンテナ内から-docker-を使う) のどちらかを外す。
+
+例外が `permissions.ask` で、このルールだけは `bypassPermissions` でも確認が出る。狙いは、自分のものではないリポジトリへの書き込みと、機微情報を外へ出すこと。`git push` と gh の書き込み系、別コンテナへ入る `docker exec`、それに `rm -rf` を登録済み。
+
+前方一致なので塞げない経路が残る。`bash -c 'git push'` のようにラッパを噛ませた場合と、`curl` で外部へ送る場合。`Bash(curl *)` にすると読み取りまで止まって使えないので、通信を絞るなら下の [ネットワーク遮断](#ネットワーク遮断を入れる)を使う。
+
+`defaultMode` に指定できる値:
+
+- `bypassPermissions` — 確認しない。`permissions.allow` は参照されないが、`deny` と `ask` は効く
+- `auto` — 確認の代わりに classifier が実行前に各アクションを判定する。Pro / Max / Team / Enterprise のみ。プロジェクト設定に書いても無視されるので、`~/.claude/settings.json` に書く
+- `acceptEdits` — 読み取り、ファイル編集、一般的なファイルシステムコマンド（`mkdir`、`touch`、`mv`、`cp` など）が確認なし
+- `default` — 読み取りのみ確認なし。UI 上のラベルは Manual。`defaultMode` の行削除時もこれ
+- `plan` — 提示された計画を承認するまで編集がブロックされる
+- `dontAsk` — `permissions.allow` に載っているものだけ実行し、それ以外は確認せず拒否する。settings.json の `allow` に基本ツールを登録済みなのは、このモードへ切り替えたとき用。`Shift+Tab` の循環には現れず、`--permission-mode dontAsk` で指定する
+
+同じキーを `.claude/settings.local.json`（gitignore 済み）に書くと、そちらが優先される。
 
 ## カスタマイズ
 
 ### 言語ランタイムを足す
 
-[.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) の `features` に追記する。コメントアウトで Go / Python / uv の例を置いてある。Node は Claude Code 本体が使うので消さないこと。
+[.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) の `features` に追記。コメントアウトで Go / Python / uv の例あり。Node は Claude Code 自体が使うので削除禁止。
+
+features に無いシステムパッケージは [.devcontainer/Dockerfile](.devcontainer/Dockerfile) の `apt-get install` へ。
+
+### LSP を足す
+
+[.claude/settings.json](.claude/settings.json) の `enabledPlugins` に LSP プラグインを追加する。言語サーバのバイナリはプラグインに含まれないので、別途入れる:
+
+- TypeScript — `typescript-lsp` / 要 `typescript-language-server` / `postCreateCommand` に `npm i -g typescript-language-server typescript`
+- Python — `pyright-lsp` / 要 `pyright-langserver` / `postCreateCommand` に `npm i -g pyright`
+- Go — `gopls-lsp` / 要 `gopls` / features の `go:1` が同梱
+- Rust — `rust-analyzer-lsp` / 要 `rust-analyzer` / features の `rust:1` が同梱
+
+npm 製の言語サーバは `postCreateCommand` に足す。features は image のビルド後に入るので、Dockerfile の時点で `npm` が無い。
 
 ### コンテナ内から docker を使う
 
-`docker-outside-of-docker` を入れてあるので、コンテナ内の `docker` コマンドがホストの Docker を操作する（Docker in Docker ではない）。テスト用の DB を上げる、イメージをビルドするといった用途に使える。
+`docker-outside-of-docker` 導入済み。Docker in Docker ではなく、コンテナ内の `docker` コマンドがホストの Docker を操作する。注意2点:
 
-2点だけ注意:
+- バインドマウントのパスはホスト基準。コンテナ内で `docker run -v $(pwd):/x` してもホスト側の同じパスが解決されるので、ワークスペース以外のパスは期待通りにならない
+- docker socket はホスト root 相当権限。信頼できないリポジトリでは外すこと
 
-- **バインドマウントのパスはホスト基準**。コンテナ内で `docker run -v $(pwd):/x` としても、ホスト側の同じパスが解決されるので、ワークスペース以外のパスは期待通りにならない
-- **docker socket はホストの root 相当の権限**。信頼できないリポジトリでは外すこと（`features` から1エントリ消すだけ）
+DB 等のサイドカーが常時必要なら `docker-compose.yml` 記述 + `devcontainer.json` の `build` を `dockerComposeFile` + `service` に差し替え。その場合 `mounts` / `containerEnv` は compose 側の `volumes` / `environment` へ移動。
 
-### システムパッケージを足す
+### ネットワーク遮断を入れる
 
-features に無いものだけ [.devcontainer/Dockerfile](.devcontainer/Dockerfile) の `apt-get install` に足す。
+公式リファレンス実装の `init-firewall.sh` を使うと、許可ドメイン以外への通信を遮断できる。
 
-同梱の `python3` は Claude のワンライナー用（pip は入れていない）。プロジェクトの言語として Python を使うなら features の `python:1` か `uv` を足すこと。
-
-### DB などのサイドカーが要るとき
-
-`docker-compose.yml` を書いて `devcontainer.json` の `build` を `dockerComposeFile` + `service` に差し替える。その場合 `mounts` / `containerEnv` は compose 側の `volumes` / `environment` に移す。
-
-### ネットワーク遮断を入れたくなったら
-
-公式の [`init-firewall.sh`](https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh) を持ってきて、`runArgs` に `--cap-add=NET_ADMIN --cap-add=NET_RAW`、`postStartCommand` に `sudo /usr/local/bin/init-firewall.sh` を足す。
-
-ホストの `~/.ssh` やクラウド認証情報をコンテナにマウントするのは、firewall の有無に関わらず避けること。コンテナ内で `gh auth login` して volume に持たせるほうが安全。
-
-### LSP を足す（言語が決まったら真っ先にやる）
-
-[.claude/settings.json](.claude/settings.json) に LSP プラグインを足すと、Claude が編集するたびに言語サーバから型エラーを受け取り、grep ではなく定義ジャンプで参照を辿れるようになる。**言語サーバのバイナリはプラグインに含まれない**ので自分で入れる必要があり、そこは devcontainer の得意分野。
-
-「バイナリ + `enabledPlugins`」の2点セットで入れる:
-
-| 言語 | プラグイン | 必要なバイナリ | バイナリの入れ方 |
-| --- | --- | --- | --- |
-| TypeScript | `typescript-lsp` | `typescript-language-server` | `postCreateCommand` に `npm i -g typescript-language-server typescript` |
-| Python | `pyright-lsp` | `pyright-langserver` | `postCreateCommand` に `npm i -g pyright` |
-| Go | `gopls-lsp` | `gopls` | features の `go:1` が同梱 |
-| Rust | `rust-analyzer-lsp` | `rust-analyzer` | features の `rust:1` が同梱 |
-
-**npm 製の言語サーバを Dockerfile に書いてはいけない。** features は Dockerfile のビルド後に適用されるので、ビルド時点では node も npm も存在しない。`postCreateCommand` に足すこと（codex がそうしている）。
-
-Go の例:
-
-```jsonc
-// .devcontainer/devcontainer.json
-"features": { "ghcr.io/devcontainers/features/go:1": { "version": "1.26" } }
-```
-```jsonc
-// .claude/settings.json
-"enabledPlugins": { "gopls-lsp@claude-plugins-official": true }
-```
-
-バイナリが無いと `/plugin` の Errors タブに `Executable not found in $PATH` が出る。大きなリポジトリでは `rust-analyzer` や `pyright` がメモリを食うので、重いと感じたら外す。
-
-### 権限プロンプトを減らす
-
-[.claude/settings.json](.claude/settings.json) の `permissions.allow` に read-only 系のコマンドを入れてある。プロジェクト共通で許可したいものはここへ、自分専用のものは `.claude/settings.local.json`（gitignore 済み）へ。
-
-## 同梱しているもの
-
-### プラグイン
-
-[.claude/settings.json](.claude/settings.json) の `enabledPlugins` で3つ有効にしてある。リポジトリを clone した全員に効く（`/plugin` で個人的に外したい場合は `.claude/settings.local.json` 側で `false` にする）。
-
-| プラグイン | 何をするか |
-| --- | --- |
-| `context7` | ライブラリの最新ドキュメントを引く。学習データの古さに引きずられなくなる |
-| `feature-dev` | 機能開発ワークフローのスキルとエージェント |
-| `security-guidance` | Claude の変更を都度レビューし、脆弱性をその場で直させる |
-| `claude-md-management` | CLAUDE.md を採点して直す。`/claude-md-management:revise-claude-md` でセッションの学びを追記できる |
-
-いずれも公式マーケットプレイス（`claude-plugins-official`）のもので、言語に依存しない。言語固有のものは上の [LSP を足す](#lsp-を足す言語が決まったら真っ先にやる)を参照。
-
-`enabledPlugins` は「有効にする」宣言でしかなく、**書いただけではプラグインは入らない**。そこで [.devcontainer/setup-plugins.sh](.devcontainer/setup-plugins.sh) を `postCreateCommand` で回し、この設定を読んで実体を入れている。増やしたいときは `enabledPlugins` に1行足すだけでよく、スクリプトは触らなくていい。
-
-インストール先は `~/.claude`（volume）なので、リビルドしても入れ直しにはならない。
-
-### Bash 実行ログのフック
-
-[.claude/hooks/log-bash.sh](.claude/hooks/log-bash.sh) を `PostToolUse(Bash)` に登録済み。Claude が Bash を実行するたび、コマンドと出力を1実行1ファイルで残す。
-
-```
-.claude/logs/bash/<UTC日付>/<セッションID先頭8桁>/<UTC時刻>-<ns>.txt
-```
-
-- 並列エージェントのログが混ざらないようセッション単位で分ける（サブエージェントは親と同じ ID なので親の下に入る）
-- `x-api-key` と `SECRET` / `PASSWORD` / `TOKEN` / `API_KEY` / `ACCESS_KEY` の値はマスクして書く
-- 出力は gitignore 済み。要らなければ `.claude/settings.json` の `hooks` を消す
-
-`jq` に依存するが、ベースイメージに同梱されている。
-
-### ポーリング待ちをブロックするフック
-
-[.claude/hooks/block-polling-wait.sh](.claude/hooks/block-polling-wait.sh) を `PreToolUse(Bash)` に登録済み。長時間待ちを `Bash` の `sleep` ループでやらせず `Monitor` に誘導するためのもので、[CLAUDE.md](CLAUDE.md) の「待機と監視」に書いた運用ルールの機械可読版。文章のルールと違って実際にコマンドを拒否できる。
-
-拒否時は `permissionDecision: "deny"` と理由を返すので、Claude はその場で `Monitor` か `run_in_background` に書き換えられる。フォアグラウンドの `while`/`until` + `sleep` と 60 秒以上の `sleep` が対象で、`run_in_background` の待機は通る。
-
-判定の全ケースは [block-polling-wait.test.sh](.claude/hooks/block-polling-wait.test.sh) にある。正規表現でコマンドを見ているので、条件をいじったら回すこと:
-
-```sh
-bash .claude/hooks/block-polling-wait.test.sh
-```
-
-### Codex を使う
-
-`codex` はコンテナに入れてあるので、初回だけ `codex` を叩いて認証する。ChatGPT アカウントでのログインか、`OPENAI_API_KEY` を渡す方法のどちらでもよい。API キーで渡すなら `.env`（gitignore 済み）に書いて `runArgs` の `--env-file` で読ませる。
-
-公式の devcontainer feature が無いため `postCreateCommand` の npm で入れている。バージョンを固定したいなら `@openai/codex@X.Y.Z` にする。要らなければ `postCreateCommand` の `codex` の行と、`~/.codex` の volume を消す。
+[`init-firewall.sh`](https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh) を持ってきて、`runArgs` に `--cap-add=NET_ADMIN --cap-add=NET_RAW`、`postStartCommand` に `sudo /usr/local/bin/init-firewall.sh` を追記。
 
 ## 認証情報を消したいとき
 
-volume ごと消す。名前の先頭はディレクトリ名なので絞り込める:
+先にコンテナを削除する。ホストで `docker rm -f <container>`、または VS Code の `Dev Containers: Clean Up Dev Containers`。停止だけでは volume は解放されない。
 
 ```sh
-docker volume ls --filter name=my-project
-docker volume rm $(docker volume ls -q --filter name=my-project)
+PROJECT=<作成時のディレクトリ名>
+docker volume ls --filter name="$PROJECT"          # 消す前に何が消えるか見る
+docker volume rm $(docker volume ls -q --filter name="$PROJECT")
 ```
+
+## 参考
+
+- [Settings](https://code.claude.com/docs/en/settings) — `.claude/settings.json` に書けるキー一覧
+- [Permission modes](https://code.claude.com/docs/en/permission-modes) — `defaultMode` の各値の挙動
+- [Worktrees](https://code.claude.com/docs/en/worktrees) — `--worktree`、`.worktreeinclude`、後片付け
+- [VS Code](https://code.claude.com/docs/en/vs-code) — 拡張側の設定一覧
+- [Best practices](https://code.claude.com/docs/en/best-practices) — CLAUDE.md の書き方、並列セッション
+- [devcontainer リファレンス実装](https://github.com/anthropics/claude-code/tree/main/.devcontainer) — 公式の Dev Container 設定一式
+- [Sharing Git credentials](https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials) — gitconfig と SSH 鍵がコンテナに渡る仕組み、agent 転送が効かないときの前提条件
