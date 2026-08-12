@@ -16,6 +16,7 @@
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [
+      "Agent",
       "Read",
       "Write",
       "Edit",
@@ -25,7 +26,16 @@
       "Glob",
       "Grep",
       "Skill",
-      "Monitor"
+      "Monitor",
+      "NotebookEdit",
+      "SendMessage",
+      "ToolSearch",
+      "TodoWrite",
+      "AskUserQuestion",
+      "Bash(curl *)"
+    ],
+    "deny": [
+      "Artifact"
     ],
     "ask": [
       "Bash(git push *)",
@@ -50,9 +60,21 @@
     "feature-dev@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "genshijin@genshijin": true
+    "genshijin@genshijin": true,
+    "codex@openai-codex": true
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-submodule-edit.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",

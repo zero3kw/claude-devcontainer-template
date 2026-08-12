@@ -1,18 +1,30 @@
 FROM mcr.microsoft.com/devcontainers/base:debian
 
-# 言語ランタイム (node など) は devcontainer.json の features 側で入れる。
-# ここには features に無いシステムパッケージだけを書く。
+# ここには features に無いシステムパッケージだけを書く。言語ランタイムは features 側。
 # jq / curl / git / less / tree / ps / make / gcc / locales はベースイメージに同梱済み。
-#
-# python3 は Claude のワンライナー用。プロジェクトの言語として Python を使うなら
-# features の python:1 か uv を足す
+# python3 は Claude のワンライナー用
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     ripgrep \
     fzf \
+    iptables \
+    ipset \
+    dnsutils \
+    aggregate \
     && rm -rf /var/lib/apt/lists/*
 
-# ロケールとタイムゾーン。ベースイメージは en_US.UTF-8 しか有効にしていない
+# ネットワーク遮断。iptables / ipset / dnsutils / aggregate は上でこのスクリプトのために入れている。
+# vscode の無制限 sudo を外し、sudo をこのスクリプトだけに絞る — エージェントが iptables を
+# 直接叩いて遮断を解除できないようにするため。以後、パッケージの追加はコンテナ内の
+# sudo apt-get ではなく、この Dockerfile に書いて Rebuild する
+# /usr/local/bin は claude-code feature が同梱の official 版で上書きするので /usr/local/sbin に置く
+COPY init-firewall.sh /usr/local/sbin/
+RUN chmod 755 /usr/local/sbin/init-firewall.sh \
+    && rm -f /etc/sudoers.d/vscode \
+    && echo "vscode ALL=(root) NOPASSWD: /usr/local/sbin/init-firewall.sh" > /etc/sudoers.d/vscode-firewall \
+    && chmod 0440 /etc/sudoers.d/vscode-firewall
+
+# ベースイメージは en_US.UTF-8 しか有効にしていない
 RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
     && echo "Asia/Tokyo" > /etc/timezone \
     && sed -i -E 's/# (ja_JP.UTF-8)/\1/' /etc/locale.gen \
@@ -26,7 +38,6 @@ ENV DEVCONTAINER=true
 # こうしないと volume の初回作成時に root 所有になり、書き込めなくなる。
 # この一覧は devcontainer.json の mounts と一致させること。
 #
-# あわせて bash 履歴を volume 側に書く。history -a で実行のたびに追記する。
 # PROMPT_COMMAND はベースイメージも使うので上書きせず後ろに足す
 RUN mkdir -p /home/vscode/.claude/tmp /home/vscode/.codex /home/vscode/.config/gh /commandhistory \
     && chown -R vscode:vscode /home/vscode/.claude /home/vscode/.codex /home/vscode/.config /commandhistory \

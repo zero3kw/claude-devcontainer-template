@@ -1,5 +1,7 @@
 .DS_Store
 
+.devcontainer/devcontainer-lock.json
+
 # コンテナに渡す値も直書きせずここに書く
 .env
 .env.*

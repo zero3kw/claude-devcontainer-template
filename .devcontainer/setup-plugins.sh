@@ -17,6 +17,7 @@ SETTINGS=".claude/settings.json"
 MARKETPLACES=(
   "https://github.com/anthropics/claude-plugins-official.git"
   "https://github.com/InterfaceX-co-jp/genshijin.git"
+  "https://github.com/openai/codex-plugin-cc.git"
 )
 
 [ -f "$SETTINGS" ] || exit 0

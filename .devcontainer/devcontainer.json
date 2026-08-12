@@ -3,24 +3,20 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-
+  // init-firewall.sh が iptables を張るのに必要
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
   "features": {
-    // 記述順はインストール順を決めない。node が先に入るのは claude-code feature が
-    // installsAfter に node を挙げているため
-    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/node:2.1.0": {},
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    // ホストの docker をコンテナ内から使う。moby:false は Docker Desktop 用
+    // moby:false は Docker Desktop 用
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "moby": false
     }
-
-    // プロジェクトに応じて追記する例:
-    // "ghcr.io/devcontainers/features/go:1": { "version": "1.26" },
-    // "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
-    // "ghcr.io/va-h/devcontainers-features/uv:1": { "version": "latest" }
   },
-
   // 認証情報・セッション履歴・シェル履歴をコンテナ再作成をまたいで保つ
   "mounts": [
     "source=${localWorkspaceFolderBasename}-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
@@ -29,33 +25,32 @@
     "source=${localWorkspaceFolderBasename}-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume",
     "source=${localWorkspaceFolderBasename}-history-${devcontainerId},target=/commandhistory,type=volume"
   ],
-
   // ~/.claude に volume を張るだけでは毎回ログインし直しになる。OAuth アカウント情報は
   // ~/.claude.json という volume の外のファイルに入るため。CLAUDE_CONFIG_DIR を
   // 同じパスに向けると .claude.json も volume の中に書かれる
   //
-  // CLAUDE_CODE_TMPDIR は scratchpad などの一時ファイルの置き場。既定は /tmp。
-  // 実際のパスは <CLAUDE_CODE_TMPDIR>/claude-<uid>/<project>/<session>/scratchpad
-  // volume の絶対パスを指す。バインドマウントに直接書くと小さいファイルの作成が
-  // 20倍ほど遅く、agent teams のソケットもこの配下に置かれる
+  // CLAUDE_CODE_TMPDIR は scratchpad などの一時ファイルの置き場。バインドマウントに
+  // 直接書くと小さいファイルの作成が 20倍ほど遅いので volume 内に向ける。
+  // agent teams のソケットもこの配下に置かれる
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "CLAUDE_CODE_TMPDIR": "/home/vscode/.claude/tmp"
   },
-
   // tmpdir はワークスペースから中身を見えるようにするための symlink。
   // postCreateCommand より前に走らせる
   "onCreateCommand": {
     "tmpdir": "mkdir -p /home/vscode/.claude/tmp && rm -rf .claude/tmp && ln -s /home/vscode/.claude/tmp .claude/tmp"
   },
-
   // オブジェクト形式にすると並列で走る
   "postCreateCommand": {
     "codex": "npm install -g @openai/codex",
     "gitcred": "gh auth setup-git || true",
-    "plugins": "bash .devcontainer/setup-plugins.sh"
+    "plugins": "bash .devcontainer/setup-plugins.sh",
+    "submodules": "git submodule update --init --recursive"
   },
-
+  // iptables は再起動で消えるので postStart。遮断が張られるまで利用開始を待たせる
+  "postStartCommand": "sudo /usr/local/sbin/init-firewall.sh",
+  "waitFor": "postStartCommand",
   "customizations": {
     "vscode": {
       // anthropic.claude-code は claude-code feature が自動で入れる
@@ -64,17 +59,14 @@
         "editorconfig.editorconfig",
         "usernamehw.errorlens"
       ],
-
       // .claude/settings.json の permissions.defaultMode は VS Code 拡張には効かない。
       // 拡張側でモードを開放したうえで初期モードを指定する必要がある
       "settings": {
         "claudeCode.allowDangerouslySkipPermissions": true,
         "claudeCode.initialPermissionMode": "bypassPermissions",
-
         // worktree は worktrees/<name>/ と .claude/worktrees/<name>/ に作られる。
         // 後者が3階層下なので、既定の 1 ではソース管理パネルに出ない
         "git.repositoryScanMaxDepth": 3,
-
         // 書き出し専用のディレクトリ。gitignore は監視には効かない。
         // worktree は Claude が編集するので除外しない
         "files.watcherExclude": {
